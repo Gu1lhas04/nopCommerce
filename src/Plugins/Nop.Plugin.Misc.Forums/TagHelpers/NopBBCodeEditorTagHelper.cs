@@ -3,7 +3,7 @@ using Microsoft.AspNetCore.Mvc.ViewFeatures;
 using Microsoft.AspNetCore.Razor.TagHelpers;
 using Nop.Services.Helpers;
 
-namespace Nop.Web.Framework.TagHelpers.Public;
+namespace Nop.Plugin.Misc.Forums.TagHelpers;
 
 /// <summary>
 /// "nop-bb-code-editor" tag helper

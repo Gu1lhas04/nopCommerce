@@ -1,5 +1,4 @@
 ﻿using System.Text.RegularExpressions;
-using Nop.Core.Domain.Common;
 
 namespace Nop.Plugin.Misc.Forums.Services;
 
@@ -10,15 +9,15 @@ public partial class BBCodeHelper
 {
     #region Fields
 
-    protected readonly CommonSettings _commonSettings;
+    protected readonly ForumSettings _forumSettings;
 
     #endregion
 
     #region Ctor
 
-    public BBCodeHelper(CommonSettings commonSettings)
+    public BBCodeHelper(ForumSettings forumSettings)
     {
-        _commonSettings = commonSettings;
+        _forumSettings = forumSettings;
     }
 
     #endregion
@@ -75,7 +74,7 @@ public partial class BBCodeHelper
         // format the underline tags: [u][/u] becomes: <u></u>
         text = RegexUnderLine().Replace(text, "<u>$1</u>");
 
-        var newWindow = _commonSettings.BbcodeEditorOpenLinksInNewWindow;
+        var newWindow = _forumSettings.BbcodeEditorOpenLinksInNewWindow;
         // format the URL tags: [url=https://www.nopCommerce.com]my site[/url]
         // becomes: <a href="https://www.nopCommerce.com">my site</a>
         text = RegexUrl1().Replace(text, $"<a href=\"$1\" rel=\"nofollow\"{(newWindow ? " target=_blank" : "")}>$2</a>");
