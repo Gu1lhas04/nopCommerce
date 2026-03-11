@@ -5,7 +5,16 @@ services:
         ports:
             - "80:80"
         depends_on:
-            - nopcommerce_database
+            nopcommerce_database:
+                condition: service_healthy
+        mem_limit: 1g
+        user: root
+        restart: unless-stopped
+        environment:
+            OTEL_EXPORTER_OTLP_ENDPOINT: "http://jaeger:4317"
+        volumes:
+            - nopcommerce_app_data:/app/App_Data
+
     nopcommerce_database:
         image: "mcr.microsoft.com/mssql/server:2019-latest"
         container_name: nopcommerce_mssql_server
@@ -13,6 +22,53 @@ services:
             SA_PASSWORD: "nopCommerce_db_password"
             ACCEPT_EULA: "Y"
             MSSQL_PID: "Express"
+            MSSQL_MEMORY_LIMIT_MB: "1536"
+        mem_limit: 2g
+        restart: unless-stopped
+        volumes:
+            - nopcommerce_data:/var/opt/mssql
+        healthcheck:
+            test: /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P "nopCommerce_db_password" -Q "SELECT 1" -No
+            interval: 10s
+            timeout: 5s
+            retries: 10
+            start_period: 30s
+
+    jaeger:
+        image: jaegertracing/all-in-one:1.57
+        container_name: jaeger
+        ports:
+            - "16686:16686"   # Jaeger UI
+            - "4317:4317"     # OTLP gRPC
+        environment:
+            COLLECTOR_OTLP_ENABLED: "true"
+        mem_limit: 512m
+        restart: unless-stopped
+
+    prometheus:
+        image: prom/prometheus:v2.51.0
+        container_name: prometheus
+        ports:
+            - "9090:9090"
+        volumes:
+            - ./observability/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+        mem_limit: 512m
+        restart: unless-stopped
+
+    grafana:
+        image: grafana/grafana:10.4.2
+        container_name: grafana
+        ports:
+            - "3000:3000"
+        environment:
+            GF_SECURITY_ADMIN_PASSWORD: "admin"
+        volumes:
+            - grafana_data:/var/lib/grafana
+            - ./observability/grafana/provisioning:/etc/grafana/provisioning:ro
+        mem_limit: 512m
+        restart: unless-stopped
 
 volumes:
-  nopcommerce_data:            
+  nopcommerce_data:
+  nopcommerce_app_data:
+  grafana_data:

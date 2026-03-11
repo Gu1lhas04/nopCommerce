@@ -1,7 +1,11 @@
 ﻿using Autofac.Extensions.DependencyInjection;
 using Nop.Core.Configuration;
 using Nop.Core.Infrastructure;
+using Nop.Services.Catalog;
 using Nop.Web.Framework.Infrastructure.Extensions;
+using OpenTelemetry.Metrics;
+using OpenTelemetry.Resources;
+using OpenTelemetry.Trace;
 
 namespace Nop.Web;
 
@@ -38,12 +42,27 @@ public partial class Program
             });
         }
 
+        //configure OpenTelemetry
+        var otlpEndpoint = builder.Configuration["OTEL_EXPORTER_OTLP_ENDPOINT"] ?? "http://jaeger:4317";
+        builder.Services.AddOpenTelemetry()
+            .ConfigureResource(r => r.AddService("nopcommerce"))
+            .WithTracing(tracing => tracing
+                .AddAspNetCoreInstrumentation()
+                .AddEntityFrameworkCoreInstrumentation()
+                .AddSource(CatalogueTelemetry.ActivitySourceName)
+                .AddOtlpExporter(o => o.Endpoint = new Uri(otlpEndpoint)))
+            .WithMetrics(metrics => metrics
+                .AddAspNetCoreInstrumentation()
+                .AddMeter(CatalogueTelemetry.MeterName)
+                .AddPrometheusExporter());
+
         //add services to the application and configure service provider
         builder.Services.ConfigureApplicationServices(builder);
 
         var app = builder.Build();
 
         //configure the application HTTP request pipeline
+        app.UseOpenTelemetryPrometheusScrapingEndpoint();
         app.ConfigureRequestPipeline();
         await app.PublishAppStartedEventAsync();
 

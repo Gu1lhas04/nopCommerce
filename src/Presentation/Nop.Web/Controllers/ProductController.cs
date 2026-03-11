@@ -195,7 +195,15 @@ public partial class ProductController : BasePublicController
             string.Format(await _localizationService.GetResourceAsync("ActivityLog.PublicStore.ViewProduct"), product.Name), product);
 
         //model
+        var sw = System.Diagnostics.Stopwatch.StartNew();
         var model = await _productModelFactory.PrepareProductDetailsModelAsync(product, updatecartitem, false);
+        sw.Stop();
+
+        var categoryName = model.Breadcrumb?.CategoryBreadcrumb?.LastOrDefault()?.Name ?? "unknown";
+        using var activity = CatalogueTelemetry.StartProductPageActivity(productId, categoryName);
+        CatalogueTelemetry.ProductPageDuration.Record(sw.Elapsed.TotalMilliseconds,
+            new KeyValuePair<string, object>("category", categoryName));
+
         //template
         var productTemplateViewPath = await _productModelFactory.PrepareProductTemplateViewPathAsync(product);
 

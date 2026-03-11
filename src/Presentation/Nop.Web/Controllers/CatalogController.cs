@@ -363,7 +363,16 @@ public partial class CatalogController : BasePublicController
         if (model == null)
             model = new SearchModel();
 
+        using var activity = CatalogueTelemetry.StartSearchActivity(model.q, model.cid);
+
         model = await _catalogModelFactory.PrepareSearchModelAsync(model, command);
+
+        var resultCount = model.CatalogProductsModel.Products.Count;
+        activity?.SetTag("search.result_count", resultCount);
+
+        if (!string.IsNullOrWhiteSpace(model.q) && resultCount == 0)
+            CatalogueTelemetry.SearchZeroResults.Add(1,
+                new KeyValuePair<string, object>("category_id", model.cid));
 
         return View(model);
     }
@@ -412,7 +421,16 @@ public partial class CatalogController : BasePublicController
         if (searchModel == null)
             searchModel = new SearchModel();
 
+        using var activity = CatalogueTelemetry.StartSearchActivity(
+            searchModel.q, searchModel.cid);
+
         var model = await _catalogModelFactory.PrepareSearchProductsModelAsync(searchModel, command);
+
+        if (model.Products.Count == 0)
+            CatalogueTelemetry.SearchZeroResults.Add(1,
+                new KeyValuePair<string, object>("category_id", searchModel.cid));
+
+        activity?.SetTag("search.result_count", model.TotalItems);
 
         return PartialView("_ProductsInGridOrLines", model);
     }
