@@ -1,0 +1,385 @@
+{
+  "__inputs": [],
+  "__requires": [],
+  "annotations": { "list": [] },
+  "description": "End-to-end observability for the 'Customer searches and views a product' flow. Read top-to-bottom: is it alive? is it fast? are there silent failures? what happened?",
+  "editable": true,
+  "graphTooltip": 1,
+  "links": [
+    {
+      "title": "Open Jaeger UI",
+      "url": "http://localhost:16686",
+      "type": "link",
+      "icon": "external link",
+      "targetBlank": true,
+      "tags": []
+    }
+  ],
+  "panels": [
+
+    {
+      "id": 10,
+      "title": "1 — Is it alive? What is happening right now?",
+      "type": "row",
+      "collapsed": false,
+      "gridPos": { "x": 0, "y": 0, "w": 24, "h": 1 }
+    },
+    {
+      "id": 11,
+      "title": "Searches / min",
+      "description": "How many search requests the store is handling right now. Zero means no traffic or the app is down.",
+      "type": "stat",
+      "gridPos": { "x": 0, "y": 1, "w": 6, "h": 4 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "decimals": 1,
+          "color": { "mode": "thresholds" },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "red", "value": null },
+              { "color": "yellow", "value": 0.1 },
+              { "color": "green", "value": 1 }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "sum(rate(http_server_request_duration_seconds_count{http_route=~\".*(search).*\"}[2m])) * 60",
+          "legendFormat": "searches/min"
+        }
+      ],
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "orientation": "auto", "textMode": "auto", "colorMode": "background", "graphMode": "area" }
+    },
+    {
+      "id": 12,
+      "title": "Product Page Views / min",
+      "description": "How many product detail pages are being loaded per minute. Dropping to zero while searches remain active suggests a broken link between search results and product pages.",
+      "type": "stat",
+      "gridPos": { "x": 6, "y": 1, "w": 6, "h": 4 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "decimals": 1,
+          "color": { "mode": "thresholds" },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "red", "value": null },
+              { "color": "yellow", "value": 0.1 },
+              { "color": "green", "value": 1 }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "sum(rate(http_server_request_duration_seconds_count{http_route=~\".*(product).*\"}[2m])) * 60",
+          "legendFormat": "views/min"
+        }
+      ],
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "orientation": "auto", "textMode": "auto", "colorMode": "background", "graphMode": "area" }
+    },
+    {
+      "id": 13,
+      "title": "Error Rate (5xx)",
+      "description": "Percentage of requests in the search+product flow that are returning server errors. Any value above 0% means users are hitting failures right now.",
+      "type": "stat",
+      "gridPos": { "x": 12, "y": 1, "w": 6, "h": 4 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "decimals": 2,
+          "color": { "mode": "thresholds" },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 1 },
+              { "color": "red", "value": 5 }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "100 * sum(rate(http_server_request_duration_seconds_count{http_response_status_code=~\"5..\", http_route=~\".*(search|product).*\"}[2m])) / sum(rate(http_server_request_duration_seconds_count{http_route=~\".*(search|product).*\"}[2m]))",
+          "legendFormat": "error %"
+        }
+      ],
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "orientation": "auto", "textMode": "auto", "colorMode": "background", "graphMode": "none" }
+    },
+    {
+      "id": 14,
+      "title": "Product Page Latency — p95",
+      "description": "95th percentile load time for product pages. If this is above ~1 s, 1 in 20 users is experiencing a slow page. Drill into panel 2 to see which category is responsible.",
+      "type": "stat",
+      "gridPos": { "x": 18, "y": 1, "w": 6, "h": 4 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ms",
+          "decimals": 0,
+          "color": { "mode": "thresholds" },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 500 },
+              { "color": "red", "value": 1000 }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "histogram_quantile(0.95, sum(rate(catalogue_product_page_duration_bucket[5m])) by (le))",
+          "legendFormat": "p95"
+        }
+      ],
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "orientation": "auto", "textMode": "auto", "colorMode": "background", "graphMode": "none" }
+    },
+
+    {
+      "id": 20,
+      "title": "2 — Is it fast?",
+      "type": "row",
+      "collapsed": false,
+      "gridPos": { "x": 0, "y": 5, "w": 24, "h": 1 }
+    },
+    {
+      "id": 21,
+      "title": "Product Page Load Duration — p50 / p95 / p99 by category",
+      "description": "Time to fully load a product detail page, broken down by category. A spike confined to one category points to a category-specific problem (e.g. too many variants, missing DB index) rather than a systemic one.",
+      "type": "timeseries",
+      "gridPos": { "x": 0, "y": 6, "w": 14, "h": 9 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ms",
+          "custom": { "lineWidth": 2, "fillOpacity": 8 }
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "p50",
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "histogram_quantile(0.50, sum(rate(catalogue_product_page_duration_bucket[5m])) by (le, category))",
+          "legendFormat": "p50 — {{category}}"
+        },
+        {
+          "refId": "p95",
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "histogram_quantile(0.95, sum(rate(catalogue_product_page_duration_bucket[5m])) by (le, category))",
+          "legendFormat": "p95 — {{category}}"
+        },
+        {
+          "refId": "p99",
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "histogram_quantile(0.99, sum(rate(catalogue_product_page_duration_bucket[5m])) by (le, category))",
+          "legendFormat": "p99 — {{category}}"
+        }
+      ],
+      "options": {
+        "tooltip": { "mode": "multi" },
+        "legend": { "displayMode": "table", "placement": "bottom", "calcs": ["mean", "max"] }
+      }
+    },
+    {
+      "id": 22,
+      "title": "Request Throughput — Searches vs Product Views",
+      "description": "Volume of each step in the flow over time. In a healthy store, product views track searches with a small lag — a user searches, then clicks a result. If the two lines diverge sharply, users are searching but not clicking through.",
+      "type": "timeseries",
+      "gridPos": { "x": 14, "y": 6, "w": 10, "h": 9 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "reqps",
+          "custom": { "lineWidth": 2, "fillOpacity": 8 }
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "searches",
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "sum(rate(http_server_request_duration_seconds_count{http_route=~\".*(search).*\"}[2m]))",
+          "legendFormat": "searches/s"
+        },
+        {
+          "refId": "views",
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "sum(rate(http_server_request_duration_seconds_count{http_route=~\".*(product).*\"}[2m]))",
+          "legendFormat": "product views/s"
+        }
+      ],
+      "options": {
+        "tooltip": { "mode": "multi" },
+        "legend": { "displayMode": "table", "placement": "bottom", "calcs": ["mean", "max"] }
+      }
+    },
+
+    {
+      "id": 30,
+      "title": "3 — Are there silent failures?",
+      "type": "row",
+      "collapsed": false,
+      "gridPos": { "x": 0, "y": 15, "w": 24, "h": 1 }
+    },
+    {
+      "id": 31,
+      "title": "Zero-Result Searches vs Total Searches",
+      "description": "A search that returns zero results is a silent conversion killer — the user sees nothing, gets no error, but leaves. Compare the orange line (zero-result searches) against the blue (all searches) to gauge how much of the catalogue is effectively invisible to users.",
+      "type": "timeseries",
+      "gridPos": { "x": 0, "y": 16, "w": 12, "h": 8 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "reqps",
+          "custom": { "lineWidth": 2, "fillOpacity": 10 }
+        },
+        "overrides": [
+          {
+            "matcher": { "id": "byName", "options": "zero-result searches/s" },
+            "properties": [
+              { "id": "color", "value": { "mode": "fixed", "fixedColor": "orange" } }
+            ]
+          }
+        ]
+      },
+      "targets": [
+        {
+          "refId": "total",
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "sum(rate(http_server_request_duration_seconds_count{http_route=~\".*(search).*\"}[2m]))",
+          "legendFormat": "all searches/s"
+        },
+        {
+          "refId": "zero",
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "sum(rate(catalogue_search_zero_results_total[2m]))",
+          "legendFormat": "zero-result searches/s"
+        }
+      ],
+      "options": {
+        "tooltip": { "mode": "multi" },
+        "legend": { "displayMode": "table", "placement": "bottom", "calcs": ["mean", "max"] }
+      }
+    },
+    {
+      "id": 32,
+      "title": "HTTP 5xx Error Rate — search & product endpoints",
+      "description": "Server-side errors on the catalogue flow. Unlike zero-results (which are silent), 5xx errors are visible to users as broken pages. Any sustained non-zero value requires immediate attention.",
+      "type": "timeseries",
+      "gridPos": { "x": 12, "y": 16, "w": 12, "h": 8 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "reqps",
+          "custom": { "lineWidth": 2, "fillOpacity": 15 },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "red", "value": 0.01 }
+            ]
+          }
+        },
+        "overrides": [
+          {
+            "matcher": { "id": "byName", "options": "5xx errors/s" },
+            "properties": [
+              { "id": "color", "value": { "mode": "fixed", "fixedColor": "red" } }
+            ]
+          },
+          {
+            "matcher": { "id": "byName", "options": "total requests/s" },
+            "properties": [
+              { "id": "color", "value": { "mode": "fixed", "fixedColor": "blue" } },
+              { "id": "custom.fillOpacity", "value": 0 },
+              { "id": "custom.lineStyle", "value": { "fill": "dash" } }
+            ]
+          }
+        ]
+      },
+      "targets": [
+        {
+          "refId": "errors",
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "sum(rate(http_server_request_duration_seconds_count{http_response_status_code=~\"5..\", http_route=~\".*(search|product).*\"}[1m]))",
+          "legendFormat": "5xx errors/s"
+        },
+        {
+          "refId": "total",
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "sum(rate(http_server_request_duration_seconds_count{http_route=~\".*(search|product).*\"}[1m]))",
+          "legendFormat": "total requests/s"
+        }
+      ],
+      "options": {
+        "tooltip": { "mode": "multi" },
+        "legend": { "displayMode": "table", "placement": "bottom", "calcs": ["mean", "max"] }
+      }
+    },
+
+    {
+      "id": 40,
+      "title": "4 — What happened? (drill into individual requests)",
+      "type": "row",
+      "collapsed": false,
+      "gridPos": { "x": 0, "y": 24, "w": 24, "h": 1 }
+    },
+    {
+      "id": 41,
+      "title": "Catalogue Traces — search & product view spans",
+      "description": "Individual request traces for the catalogue flow. Each row is one user interaction. Expand a trace to see the full span tree: HTTP handler → service layer → database query. Use this to pinpoint exactly where latency is coming from.",
+      "type": "traces",
+      "gridPos": { "x": 0, "y": 25, "w": 24, "h": 12 },
+      "datasource": { "type": "jaeger", "uid": "jaeger" },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": { "type": "jaeger", "uid": "jaeger" },
+          "queryType": "search",
+          "service": "nopcommerce",
+          "operation": "catalogue.search",
+          "limit": 20
+        }
+      ],
+      "options": {
+        "dedupStrategy": "none",
+        "enableNodeGraph": true,
+        "showStackTraces": false
+      }
+    }
+
+  ],
+  "refresh": "10s",
+  "schemaVersion": 39,
+  "tags": ["nopcommerce", "catalogue", "search", "product-view"],
+  "templating": { "list": [] },
+  "time": { "from": "now-30m", "to": "now" },
+  "timepicker": {},
+  "timezone": "browser",
+  "title": "Catalogue — Customer Search & Product View",
+  "uid": "catalogue-flow",
+  "version": 1
+}
