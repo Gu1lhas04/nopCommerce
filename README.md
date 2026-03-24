@@ -1,4 +1,125 @@
-﻿﻿nopCommerce: free and open-source eCommerce solution
+﻿﻿# Assignment 01 — Observability in nopCommerce
+
+This fork adds OpenTelemetry distributed tracing and custom metrics to nopCommerce as
+part of Individual Assignment 01. The instrumented flow is **"Customer searches and
+views a product"**, covering the Catalogue, Search, and Pricing services.
+
+---
+
+## Architecture of the instrumented flow
+
+```mermaid
+flowchart TD
+    k6["Browser / k6 load test"]
+
+    subgraph app["nopCommerce (Nop.Web + Nop.Services)"]
+        ctrl["CatalogController.Search()\nProductController.ProductDetails()"]
+        svc["ProductService · PriceCalculationService\nStockQuantityService"]
+        tel["CatalogueTelemetry\n─────────────────────────────\nSpan: catalogue.search\nSpan: catalogue.product_page\nHistogram: catalogue.product_page.duration\nCounter: catalogue.search.zero_results"]
+        db[("SQL Server")]
+        ctrl --> svc --> db
+        ctrl --> tel
+    end
+
+    k6 -->|HTTP| ctrl
+
+    tel -->|"OTLP gRPC :4317"| jaeger["Jaeger :16686\n(trace storage + UI)"]
+    app -->|"Prometheus scrape\n/metrics :80"| prom["Prometheus :9090\n(metrics storage)"]
+
+    prom -->|PromQL| grafana["Grafana :3000\n(dashboard)"]
+    jaeger -->|"Jaeger datasource\n(traces panel)"| grafana
+```
+
+**Custom instrumentation points:**
+
+| Signal | Name | What it measures |
+|--------|------|-----------------|
+| Span | `catalogue.search` | Full duration of a search request; tags: `search.query_length`, `search.category_id`, `search.result_count` |
+| Span | `catalogue.product_page` | Product detail page load; tags: `product.id`, `product.category` |
+| Histogram | `catalogue.product_page.duration` | Time (ms) to prepare a product detail page, by category |
+| Counter | `catalogue.search.zero_results` | Searches that returned no products, by category |
+
+Sensitive data (raw search keywords, product names, customer identifiers) is
+deliberately excluded from all spans and metric labels.
+
+---
+
+## How to build and run
+
+### Prerequisites
+
+- Docker and Docker Compose
+- k6 (for the load test): `sudo snap install k6`
+
+### Start the full stack
+
+```bash
+docker compose up --build
+```
+
+This starts five containers:
+
+| Container | Port | Purpose |
+|-----------|------|---------|
+| `nopcommerce` | 80 | The nopCommerce web application |
+| `nopcommerce_mssql_server` | — | SQL Server database |
+| `jaeger` | 16686 | Trace storage and UI (OTLP gRPC :4317) |
+| `prometheus` | 9090 | Metrics scraping and storage |
+| `grafana` | 3000 | Dashboard visualisation |
+
+On first run, nopCommerce will run its installation wizard. Complete it using the
+pre-configured SQL Server connection:
+
+- **Server:** `nopcommerce_mssql_server`
+- **Database:** `nopcommerce`
+- **User:** `sa`
+- **Password:** `nopCommerce_db_password`
+
+---
+
+## How to view the Grafana dashboard
+
+1. Open **http://localhost:3000** (credentials: `admin` / `admin`)
+2. Navigate to **Dashboards → Catalogue Search & Product View**
+3. The dashboard is provisioned automatically from
+   `observability/grafana/provisioning/dashboards/catalogue-dashboard.json`
+
+The dashboard is organised into three sections:
+
+| Section | What it answers |
+|---------|----------------|
+| **1 — Is it alive?** | Searches/min, product page views/min, error rate, p95 latency |
+| **2 — Is it fast?** | Product page load duration (p50/p95/p99) by category |
+| **3 — Are there silent failures?** | Zero-result search rate vs total searches; 5xx error rate |
+
+---
+
+## How to run the load test
+
+The load test uses [k6](https://k6.io) and drives the full search → product view flow.
+
+```bash
+# Default: 10 virtual users, ~3 minutes total
+k6 run load-test/catalogue-load-test.js
+
+# Higher load (more signal in Grafana)
+k6 run --vus 50 --duration 2m load-test/catalogue-load-test.js
+```
+
+The script ramps up to the target VU count over 30 seconds, holds for 2 minutes, then
+ramps down. Each virtual user:
+1. Picks a random search term and hits `/search?q=<term>`
+2. Waits 0.5–2 seconds (think time)
+3. Picks a random product page and loads it
+4. Waits 1–3 seconds (reading time)
+
+**Thresholds:** p95 response time < 2 s, error rate < 5 %.
+
+Open the Grafana dashboard before starting the test to watch metrics respond in real time.
+
+---
+
+nopCommerce: free and open-source eCommerce solution
 ===========
 
 [nopCommerce](https://www.nopcommerce.com/?utm_source=github&utm_medium=content&utm_campaign=homepage) is the best open-source eCommerce platform. nopCommerce is free, and it is the most popular ASP.NET Core shopping cart.
