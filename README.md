@@ -10,24 +10,31 @@ views a product"**, covering the Catalogue, Search, and Pricing services.
 
 ```mermaid
 flowchart TD
-    k6["Browser / k6 load test"]
+    k6["k6 / Browser"]
 
-    subgraph app["nopCommerce (Nop.Web + Nop.Services)"]
-        ctrl["CatalogController.Search()\nProductController.ProductDetails()"]
-        svc["ProductService · PriceCalculationService\nStockQuantityService"]
-        tel["CatalogueTelemetry\n─────────────────────────────\nSpan: catalogue.search\nSpan: catalogue.product_page\nHistogram: catalogue.product_page.duration\nCounter: catalogue.search.zero_results"]
+    subgraph nop[nopCommerce]
+        mw["ASP.NET Core\nMiddleware"]
+        ctrl["CatalogController\nProductController"]
+        svc["ProductService"]
+        iep["InstrumentedEventPublisher"]
         db[("SQL Server")]
-        ctrl --> svc --> db
-        ctrl --> tel
+
+        mw --> ctrl --> svc --> db
+        svc --> iep
     end
 
-    k6 -->|HTTP| ctrl
+    subgraph obs[Observability Backend]
+        prom["Prometheus\n:9090"]
+        jaeger["Jaeger\n:16686"]
+        grafana["Grafana\n:3000"]
+    end
 
-    tel -->|"OTLP gRPC :4317"| jaeger["Jaeger :16686\n(trace storage + UI)"]
-    app -->|"Prometheus scrape\n/metrics :80"| prom["Prometheus :9090\n(metrics storage)"]
-
-    prom -->|PromQL| grafana["Grafana :3000\n(dashboard)"]
-    jaeger -->|"Jaeger datasource\n(traces panel)"| grafana
+    k6 -->|HTTP| mw
+    mw -.->|spans| jaeger
+    iep -.->|spans| jaeger
+    ctrl -->|"metrics"| prom
+    prom --> grafana
+    jaeger --> grafana
 ```
 
 **Custom instrumentation points:**
@@ -36,6 +43,7 @@ flowchart TD
 |--------|------|-----------------|
 | Span | `catalogue.search` | Full duration of a search request; tags: `search.query_length`, `search.category_id`, `search.result_count` |
 | Span | `catalogue.product_page` | Product detail page load; tags: `product.id`, `product.category` |
+| Span | `event.<EventName>` | Every internal domain event dispatched via `IEventPublisher`, linked to the originating request trace |
 | Histogram | `catalogue.product_page.duration` | Time (ms) to prepare a product detail page, by category |
 | Counter | `catalogue.search.zero_results` | Searches that returned no products, by category |
 

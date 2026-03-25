@@ -231,7 +231,7 @@ public partial class NopStartup : INopStartup
         services.AddScoped<IExternalAuthenticationService, ExternalAuthenticationService>();
         services.AddSingleton<IRoutePublisher, RoutePublisher>();
         services.AddScoped<IReviewTypeService, ReviewTypeService>();
-        services.AddSingleton<IEventPublisher, EventPublisher>();
+        services.AddSingleton<IEventPublisher, InstrumentedEventPublisher>();
         services.AddScoped<ISettingService, SettingService>();
         services.AddScoped<IBBCodeHelper, BBCodeHelper>();
         services.AddScoped<IHtmlFormatter, HtmlFormatter>();

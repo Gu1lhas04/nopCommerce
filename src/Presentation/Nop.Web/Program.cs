@@ -47,9 +47,23 @@ public partial class Program
         builder.Services.AddOpenTelemetry()
             .ConfigureResource(r => r.AddService("nopcommerce"))
             .WithTracing(tracing => tracing
-                .AddAspNetCoreInstrumentation()
+                .AddAspNetCoreInstrumentation(options =>
+                {
+                    options.Filter = ctx =>
+                    {
+                        var path = ctx.Request.Path.Value ?? string.Empty;
+                        // exclude static assets, health checks, and the metrics scrape endpoint
+                        return !path.StartsWith("/content", StringComparison.OrdinalIgnoreCase)
+                            && !path.StartsWith("/scripts", StringComparison.OrdinalIgnoreCase)
+                            && !path.StartsWith("/images", StringComparison.OrdinalIgnoreCase)
+                            && !path.StartsWith("/fonts", StringComparison.OrdinalIgnoreCase)
+                            && !path.Equals("/metrics", StringComparison.OrdinalIgnoreCase)
+                            && !path.Equals("/health", StringComparison.OrdinalIgnoreCase);
+                    };
+                })
                 .AddEntityFrameworkCoreInstrumentation()
                 .AddSource(CatalogueTelemetry.ActivitySourceName)
+                .AddSource("nopcommerce.events")
                 .AddOtlpExporter(o => o.Endpoint = new Uri(otlpEndpoint)))
             .WithMetrics(metrics => metrics
                 .AddAspNetCoreInstrumentation()
